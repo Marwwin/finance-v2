@@ -5,6 +5,7 @@
    [reframeexample.events :as events]
    [reframeexample.views :as views]
    [reframeexample.config :as config]
+   [reframeexample.interceptors]
    ))
 
 
