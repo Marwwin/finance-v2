@@ -67,6 +67,7 @@
 (re-frame/reg-event-db
  ::add
  (fn [db [_ bucket event]]
+   (js/console.log bucket event)
    (let [e                 (-> event .-target .-parentElement)
          entry-name        (.querySelector e "input.name")
          entry-amount      (.querySelector e "input.amount")
@@ -75,7 +76,7 @@
       db
       [(keyword (clojure.string/lower-case bucket)) :entries]
       (fn [a]
-        (conj a {:name entry-name.value :amount entry-amount.value :order amount-of-entries}))))))
+        (vec (conj a {:name entry-name.value :amount entry-amount.value :order amount-of-entries})))))))
 
 (re-frame/reg-event-db
  ::set
@@ -86,8 +87,7 @@
 (re-frame/reg-event-db
  ::delete-entry
  (fn [db [_ bucket entry]]
-   (update-in db [(keyword bucket) :entries] (fn [es]
-                                               (vec (concat (subvec es 0 entry) (subvec es (inc entry))))))))
+   (update-in db [(keyword bucket) :entries] #(vec (concat (subvec % 0 entry) (subvec % (inc entry)))))))
 
 (re-frame/reg-event-db
  ::swap-order
@@ -96,3 +96,9 @@
               [(keyword bucket) :entries]
               (fn [entries]
                 (assoc entries a (entries b) b (entries a))))))
+
+(re-frame/reg-event-db
+ ::update-entry
+ (fn [db [_ bucket entry entry-key entry-value]]
+   (assoc-in db [(keyword bucket) :entries entry entry-key] entry-value)))
+

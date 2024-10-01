@@ -23,11 +23,12 @@
        (string/join " "))))
 
 (defn entry
-  [id {:keys [name amount bucket-name]}]
+  [id {:keys [name amount edit-name edit-amount to-buffer bucket-name]}]
   [(dynamic-keyword "div.entry.entry-" id) {:key            id
                                             :draggable      true
-                                            :style {:display         "flex"
-                                                    :justify-content "space-between" }
+                                            :style          {:display         "flex"
+                                                             :justify-content "space-between"
+                                                             :background-color (if to-buffer "orange" "inherit")}
                                             :on-drag-start  (fn [v] (-> v .-dataTransfer (.setData "text" id)))
                                             :on-drop        #(re-frame/dispatch [::events/swap-order bucket-name
                                                                                  id
@@ -35,22 +36,29 @@
                                             :on-drag-end    (fn [v] (-> v .-dataTransfer (.clearData "text")))
                                             :on-drag-enter  #(.preventDefault %)
                                             :on-drag-over   #(.preventDefault %)}
-   [:span.entry-order id]
+   ;[:span.entry-order id]
    [:span.entry-separator " "]
-   [:span.entry-name name]
+   (if edit-name
+     [:input {:value name
+              :on-change #(re-frame/dispatch [::events/update-entry bucket-name id :name (-> % .-target .-value)])
+              :on-keyPress #(when (-> % .-code (= "Enter"))
+                              (re-frame/dispatch [::events/update-entry bucket-name id :edit-name false]))}]
+     [:span.entry-name {:on-click #(re-frame/dispatch [::events/update-entry bucket-name id :edit-name true])} name])
    [:span.entry-separator " : "]
-   [:span.entry-amount amount]
+   (if edit-amount
+     [:input {:value amount
+              :on-change #(re-frame/dispatch [::events/update-entry bucket-name id :amount (-> % .-target .-value)])
+              :on-keyPress #(when (-> % .-code (= "Enter"))
+                              (re-frame/dispatch [::events/update-entry bucket-name id :edit-amount false]))}]
+     [:span.entry-amount {:on-click #(re-frame/dispatch [::events/update-entry bucket-name :edit-amount true])} amount])
+
+   (when (= bucket-name "daily")
+     (when to-buffer [:span.buffer "*"]) [:span.entry-buffer {:style {:margin-left "0.5em"}}
+                                          [(dynamic-keyword "button." bucket-name "-entry-" id "-buffer")
+                                           {:on-click #(re-frame/dispatch [::events/update-entry bucket-name id :to-buffer (not to-buffer)])} "buffer"]])
    [:span.entry-delete {:style {:margin-left "0.5em"}}
-    [(dynamic-keyword "button." bucket-name "-entry-" id)
-     {:on-click #(re-frame/dispatch [::events/delete-entry bucket-name (-> %
-                                                                           .-target
-                                                                           .-parentElement
-                                                                           .-parentElement
-                                                                           .-className
-                                                                           (string/split #"entry-")
-                                                                           last
-                                                                           int)])}
-     "-"]]])
+    [(dynamic-keyword "button." bucket-name "-entry-" id "-delete")
+     {:on-click #(re-frame/dispatch [::events/delete-entry bucket-name id])} "-"]]])
 
 (defn- add-entry-form [bucket-name]
   [:div.addform
@@ -68,7 +76,7 @@
     [:button {:on-click #(re-frame/dispatch [::events/add bucket-name %])} "+"]]])
 
 (defn in-bucket
-  [{:keys [bucket-name entries]}]
+  [bucket-name {:keys [entries]}]
   [(dynamic-keyword "div#bucket-" bucket-name) {:style {:margin           "2em"
                                                         :padding          "2em"
                                                         :display          "flex"
@@ -77,11 +85,12 @@
                                                         :background-color "green"}}
    [:h2.bucket-header (format-bucket-header bucket-name)]
    [:h3.bucket-total (str "Total " (total-value-of-bucket entries))]
-   (map-indexed (fn [i e] (entry i (assoc e :bucket-name bucket-name)))  entries)
-   (add-entry-form bucket-name)])
+   [:div.entries
+    (map-indexed (fn [i e] (entry i (assoc e :bucket-name bucket-name)))  entries)
+    (add-entry-form bucket-name)]])
 
 (defn out-bucket
-  [{:keys [bucket-name percent entries]}  total-in]
+  [bucket-name {:keys [percent entries]}  total-in]
   (let [incoming  (* percent total-in)
         netto     (- incoming (total-value-of-bucket entries))]
     [(dynamic-keyword "div#bucket-" bucket-name) {:style {:margin           "2em"
@@ -103,7 +112,11 @@
      [:div.entries
       (map-indexed (fn [i a] (entry i (assoc a :bucket-name bucket-name))) entries)
       (add-entry-form bucket-name)]
-     [:h4 (str "Netto: " netto)]]))
+     [:h4 (str "Netto: " netto)]
+     (when (= bucket-name "daily")
+       (let [buffer (reduce (fn [acc e] (if (:to-buffer e) (+ acc (int (:amount e))) acc)) 0 entries)]
+         (when-not (nil? buffer)
+           [:h4 (str "Amount to Buffer: " buffer)])))]))
 
 (defn main-panel []
   (let [income            (re-frame/subscribe [::subs/income])
@@ -114,13 +127,13 @@
         splurge           (re-frame/subscribe [::subs/splurge])]
     [:div
      [:h1 @name]
-     (in-bucket @income)
+     (in-bucket "income" @income)
      (let [total (total-value-of-bucket (:entries @income))]
        [:div
-        (out-bucket @daily total)
-        (out-bucket @splurge total)
-        (out-bucket @fire-extinguisher total)
-        (out-bucket @smile total)])]))
+        (out-bucket "daily" @daily total)
+        (out-bucket "splurge" @splurge total)
+        (out-bucket "fire-extinguisher" @fire-extinguisher total)
+        (out-bucket "smile" @smile total)])]))
 
 
 
