@@ -47,10 +47,10 @@
    [:span.entry-separator " : "]
    (if edit-amount
      [:input {:value amount
-              :on-change #(re-frame/dispatch [::events/update-entry bucket-name id :amount (-> % .-target .-value)])
+              :on-change #(re-frame/dispatch [::events/update-entry bucket-name (int id) :amount (-> % .-target .-value)])
               :on-keyPress #(when (-> % .-code (= "Enter"))
                               (re-frame/dispatch [::events/update-entry bucket-name id :edit-amount false]))}]
-     [:span.entry-amount {:on-click #(re-frame/dispatch [::events/update-entry bucket-name :edit-amount true])} amount])
+     [:span.entry-amount {:on-click #(re-frame/dispatch [::events/update-entry bucket-name id :edit-amount true])} amount])
 
    (when (= bucket-name "daily")
      (when to-buffer [:span.buffer "*"]) [:span.entry-buffer {:style {:margin-left "0.5em"}}
@@ -103,11 +103,11 @@
      [:div {:style {:display "flex"
                     :align-items "center"}}
       [:h3#percentage "Percent: "]
-      [:input {:type "number"
+      [:input {:type         "number"
                :defaultValue percent
-               :style {:width "4em"
-                       :margin-left "1em"}
-               :on-change #(re-frame/dispatch [::events/set bucket-name "percent" %])}]]
+               :style        {:width "4em"
+                              :margin-left "1em"}
+               :on-change    #(re-frame/dispatch [::events/set bucket-name "percent" %])}]]
      [:h3 (str "In: " incoming)]
      [:div.entries
       (map-indexed (fn [i a] (entry i (assoc a :bucket-name bucket-name))) entries)
