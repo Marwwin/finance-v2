@@ -1,10 +1,11 @@
 (ns reframeexample.events
   (:require
-   [re-frame.core :as re-frame]
-   [reframeexample.db :as db]
-   [day8.re-frame.http-fx]
+   [ajax.core :as ajax]
    [cljs.reader :as reader]
-   [ajax.core :as ajax]))
+   [clojure.string :as s]
+   [day8.re-frame.http-fx]
+   [re-frame.core :as re-frame]
+   [reframeexample.db :as db]))
 
 ; (re-frame/reg-event-db
 ;  ::initialize-db
@@ -15,7 +16,7 @@
 
 (re-frame/reg-event-fx
  ::initialize-db
- (fn [{:keys [db]}]
+ (fn [{:keys [_]}]
    {:db db/default-db
     :http-xhrio {:method          :get
                  :uri             "http://localhost:3000/current-state"
@@ -35,8 +36,8 @@
 
 (re-frame/reg-event-fx
  ::set-state
- (fn [db [_ [r]]]
-   {:db (-> r
+ (fn [_ [_ [response]]]
+   {:db (-> response
             :state
             cljs.reader/read-string
             walk)}))
@@ -74,15 +75,14 @@
          amount-of-entries (-> (keyword bucket) db :entries count)]
      (update-in
       db
-      [(keyword (clojure.string/lower-case bucket)) :entries]
+      [(keyword (s/lower-case bucket)) :entries]
       (fn [a]
         (vec (conj a {:name entry-name.value :amount entry-amount.value :order amount-of-entries})))))))
 
 (re-frame/reg-event-db
  ::set
- (fn [db [_ bucket k c]]
-   (let  [value (-> c .-target .-value)]
-     (assoc-in db [(keyword bucket) (keyword k)] value))))
+ (fn [db [_ bucket key event]]
+   (assoc-in db [(keyword bucket) (keyword key)] (-> event .-target .-value))))
 
 (re-frame/reg-event-db
  ::delete-entry
@@ -91,11 +91,13 @@
 
 (re-frame/reg-event-db
  ::swap-order
- (fn [db [_ bucket a b]]
+ (fn [db [_ bucket new-pos orig-pos]]
    (update-in db
               [(keyword bucket) :entries]
               (fn [entries]
-                (assoc entries a (entries b) b (entries a))))))
+                (let [entry-to-move   (nth entries orig-pos)
+                      without-element (vec (concat (subvec entries 0 orig-pos) (subvec entries (inc orig-pos))))]
+                  (vec (concat (subvec without-element 0 new-pos) [entry-to-move] (subvec without-element new-pos))))))))
 
 (re-frame/reg-event-db
  ::update-entry

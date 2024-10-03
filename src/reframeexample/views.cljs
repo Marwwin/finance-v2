@@ -1,66 +1,84 @@
 (ns reframeexample.views
   (:require
-   [clojure.string :as string]
-   [re-frame.core :as re-frame]
-   [reframeexample.events :as events]
-   [reframeexample.subs :as subs]))
+    [clojure.string :as string]
+    [re-frame.core :as re-frame]
+    [reframeexample.events :as events]
+    [reframeexample.subs :as subs]))
+
 
 (defn- total-value-of-bucket
   [entries]
   (reduce
-   (fn [acc {:keys [_ amount]}]
-     (+ acc (int amount))) 0 entries))
+    (fn [acc {:keys [_ amount]}]
+      (+ acc (int amount))) 0 entries))
+
 
 (defn- dynamic-keyword
   [& s]
   (keyword (apply str s)))
 
-(defn- format-bucket-header [bucket-name]
+
+(defn- format-bucket-header
+  [bucket-name]
   (-> bucket-name
       (string/split #"-")
       (->>
-       (map string/capitalize)
-       (string/join " "))))
+        (map string/capitalize)
+        (string/join " "))))
+
 
 (defn entry
   [id {:keys [name amount edit-name edit-amount to-buffer bucket-name]}]
   [(dynamic-keyword "div.entry.entry-" id) {:key            id
                                             :draggable      true
-                                            :style          {:display         "flex"
-                                                             :justify-content "space-between"
-                                                             :background-color (if to-buffer "orange" "inherit")}
-                                            :on-drag-start  (fn [v] (-> v .-dataTransfer (.setData "text" id)))
+                                            :style          {:display               "grid"
+                                                             :grid-template-columns "1fr auto 80px auto"
+                                                             :align-items           "center"
+                                                             :gap                   "5px"
+                                                             :justify-content       "space-between"
+                                                             :background-color      (if to-buffer "orange" "inherit")
+                                                             :margin                "0.1em"
+                                                             :padding               "0.3em"
+                                                             :border-radius         "5px"}
+                                            :on-drag-start  (fn [event] (-> event .-dataTransfer (.setData "text" id)))
                                             :on-drop        #(re-frame/dispatch [::events/swap-order bucket-name
                                                                                  id
                                                                                  (-> % .-dataTransfer (.getData "text") int)])
-                                            :on-drag-end    (fn [v] (-> v .-dataTransfer (.clearData "text")))
+                                            :on-drag-end    (fn [event] (-> event .-dataTransfer (.clearData "text")))
                                             :on-drag-enter  #(.preventDefault %)
                                             :on-drag-over   #(.preventDefault %)}
-   ;[:span.entry-order id]
-   [:span.entry-separator " "]
+   ;; [:span.entry-order id]
+   ;;    [:span.entry-separator " "]
    (if edit-name
      [:input {:value name
               :on-change #(re-frame/dispatch [::events/update-entry bucket-name id :name (-> % .-target .-value)])
               :on-keyPress #(when (-> % .-code (= "Enter"))
                               (re-frame/dispatch [::events/update-entry bucket-name id :edit-name false]))}]
-     [:span.entry-name {:on-click #(re-frame/dispatch [::events/update-entry bucket-name id :edit-name true])} name])
+     [:span.entry-name {:style    {:grid-column "1"}
+                        :on-click #(re-frame/dispatch [::events/update-entry bucket-name id :edit-name true])} name])
    [:span.entry-separator " : "]
    (if edit-amount
-     [:input {:value amount
-              :on-change #(re-frame/dispatch [::events/update-entry bucket-name (int id) :amount (-> % .-target .-value)])
+     [:input {:value       amount
+              :style       {:grid-column "3"
+                            :text-align  "right"}
+              :on-change   #(re-frame/dispatch [::events/update-entry bucket-name (int id) :amount (-> % .-target .-value)])
               :on-keyPress #(when (-> % .-code (= "Enter"))
                               (re-frame/dispatch [::events/update-entry bucket-name id :edit-amount false]))}]
      [:span.entry-amount {:on-click #(re-frame/dispatch [::events/update-entry bucket-name id :edit-amount true])} amount])
 
    (when (= bucket-name "daily")
-     (when to-buffer [:span.buffer "*"]) [:span.entry-buffer {:style {:margin-left "0.5em"}}
+     (when to-buffer [:span.buffer "*"]) [:span.entry-buffer {:style {:margin-left "0.5em"
+                                                                      :grid-column "4"}}
                                           [(dynamic-keyword "button." bucket-name "-entry-" id "-buffer")
                                            {:on-click #(re-frame/dispatch [::events/update-entry bucket-name id :to-buffer (not to-buffer)])} "buffer"]])
-   [:span.entry-delete {:style {:margin-left "0.5em"}}
+   [:span.entry-delete {:style {:margin-left "0.5em"
+                                :grid-column "5"}}
     [(dynamic-keyword "button." bucket-name "-entry-" id "-delete")
      {:on-click #(re-frame/dispatch [::events/delete-entry bucket-name id])} "-"]]])
 
-(defn- add-entry-form [bucket-name]
+
+(defn- add-entry-form
+  [bucket-name]
   [:div.addform
    [(dynamic-keyword "span#" bucket-name "-add")
     [:input.name {:type "text"
@@ -75,6 +93,7 @@
                                     (re-frame/dispatch [::events/add bucket-name %]))}]
     [:button {:on-click #(re-frame/dispatch [::events/add bucket-name %])} "+"]]])
 
+
 (defn in-bucket
   [bucket-name {:keys [entries]}]
   [(dynamic-keyword "div#bucket-" bucket-name) {:style {:margin           "2em"
@@ -88,6 +107,7 @@
    [:div.entries
     (map-indexed (fn [i e] (entry i (assoc e :bucket-name bucket-name)))  entries)
     (add-entry-form bucket-name)]])
+
 
 (defn out-bucket
   [bucket-name {:keys [percent entries]}  total-in]
@@ -118,7 +138,9 @@
          (when-not (nil? buffer)
            [:h4 (str "Amount to Buffer: " buffer)])))]))
 
-(defn main-panel []
+
+(defn main-panel
+  []
   (let [income            (re-frame/subscribe [::subs/income])
         name              (re-frame/subscribe [::subs/name])
         daily             (re-frame/subscribe [::subs/daily])
@@ -134,7 +156,3 @@
         (out-bucket "splurge" @splurge total)
         (out-bucket "fire-extinguisher" @fire-extinguisher total)
         (out-bucket "smile" @smile total)])]))
-
-
-
-
